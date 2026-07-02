@@ -2,6 +2,7 @@ package com.hypdescape.musexr.network
 
 import android.graphics.Bitmap
 import android.util.Base64
+import com.hypdescape.musexr.BuildConfig
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -22,7 +23,8 @@ import org.json.JSONObject
 data class AskResponse(val mode: String, val answer: String, val exhibit: String)
 
 class LouvreApiClient(
-    private val baseUrl: String = "https://louvre-xr-backend-production.up.railway.app",
+    // Set via `backend_base_url` in local.properties (git-ignored) -> BuildConfig.
+    private val baseUrl: String = BuildConfig.BACKEND_BASE_URL,
 ) {
     private val client =
         OkHttpClient.Builder()

@@ -35,6 +35,17 @@ android {
             localProperties.getProperty("mwdat_application_id", "")
         manifestPlaceholders["mwdatClientToken"] =
             localProperties.getProperty("mwdat_client_token", "")
+
+        // Kept out of source: set `backend_base_url` in local.properties (git-ignored).
+        buildConfigField(
+            "String",
+            "BACKEND_BASE_URL",
+            "\"${localProperties.getProperty("backend_base_url", "")}\"",
+        )
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
