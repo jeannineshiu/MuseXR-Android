@@ -1,0 +1,27 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/.idea/claudeCodeEditorTabs.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Kotlin / Gradle build caches (module build dirs, incremental compiler cache)
+.kotlin
+**/build/
+
+# Signing / keystores
+*.jks
+*.keystore
+
+# Logs
+*.log

@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">MuseXR</string>
+    <string name="status_not_connected">Not connected to glasses</string>
+    <string name="status_connecting">Connecting to glasses…</string>
+    <string name="status_connected">Connected to glasses</string>
+    <string name="status_capturing">Looking at sculpture…</string>
+    <string name="connect_to_glasses">Connect to Glasses</string>
+    <string name="ask_about_sculpture">Ask About This Sculpture</string>
+    <string name="default_question">Tell me about this sculpture</string>
+</resources>
