@@ -18,12 +18,16 @@ import com.meta.wearable.dat.core.types.DeviceSessionError
 import com.meta.wearable.dat.core.types.Permission
 import com.meta.wearable.dat.core.types.PermissionStatus
 import com.meta.wearable.dat.core.types.RegistrationState
+import androidx.lifecycle.lifecycleScope
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -49,8 +53,15 @@ class GlassesManager(private val activity: ComponentActivity) {
 
     private val deviceSelector: DeviceSelector by lazy { AutoDeviceSelector() }
 
-    val registrationState: StateFlow<RegistrationState>
-        get() = Wearables.registrationState
+    // Wearables.registrationState (and every other Wearables API) throws WearablesException
+    // if touched before Wearables.initialize() runs. initialize() only happens once Android's
+    // runtime permission dialog is answered, which is asynchronous — so MainActivity can start
+    // observing registrationState before that. Buffer our own state and only bridge to the SDK
+    // once initialized, so early observers never touch Wearables directly.
+    private val _registrationState = MutableStateFlow(RegistrationState.UNAVAILABLE)
+    val registrationState: StateFlow<RegistrationState> = _registrationState.asStateFlow()
+
+    private var initialized = false
 
     private var session: DeviceSession? = null
     private var stream: Stream? = null
@@ -66,15 +77,22 @@ class GlassesManager(private val activity: ComponentActivity) {
 
     /** Must be called once, after Android runtime permissions (Bluetooth, Camera) are granted. */
     fun initialize() {
+        if (initialized) return
+        initialized = true
         Wearables.initialize(activity.application)
+        activity.lifecycleScope.launch {
+            Wearables.registrationState.collect { _registrationState.value = it }
+        }
     }
 
     /** Launches the Meta AI app pairing flow. Observe [registrationState] for the result. */
     fun connect() {
+        if (!initialized) return
         Wearables.startRegistration(activity)
     }
 
     fun disconnect() {
+        if (!initialized) return
         stopSession()
         Wearables.startUnregistration(activity)
     }
@@ -85,6 +103,9 @@ class GlassesManager(private val activity: ComponentActivity) {
      * subsequent captures.
      */
     suspend fun capturePhoto(): Result<Bitmap> {
+        if (!initialized) {
+            return Result.failure(IllegalStateException("Glasses SDK not initialized yet"))
+        }
         val outcome =
             try {
                 withTimeoutOrNull(15_000) {
