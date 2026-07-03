@@ -29,6 +29,16 @@
             android:name="com.meta.wearable.mwdat.CLIENT_TOKEN"
             android:value="${mwdatClientToken}" />
 
+        <!-- Workaround for a DAT 0.8.0 regression (camera-only Ray-Ban Meta): with DAM
+             enabled (the new 0.8.0 default), the session never reconnects after a BT
+             severance (e.g. folding the glasses) — see
+             https://github.com/facebook/meta-wearables-dat-android/issues/128. Forcing
+             the legacy (non-DAM) path restores fold/reconnect behavior for camera-only
+             apps. Revisit once Meta fixes DAM reconnection for non-Display devices. -->
+        <meta-data
+            android:name="com.meta.wearable.mwdat.DAM_ENABLED"
+            android:value="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

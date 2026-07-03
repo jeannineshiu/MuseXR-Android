@@ -14,12 +14,14 @@ import com.meta.wearable.dat.core.selectors.AutoDeviceSelector
 import com.meta.wearable.dat.core.selectors.DeviceSelector
 import com.meta.wearable.dat.core.session.DeviceSession
 import com.meta.wearable.dat.core.session.DeviceSessionState
+import com.meta.wearable.dat.core.types.DeviceSessionError
 import com.meta.wearable.dat.core.types.Permission
 import com.meta.wearable.dat.core.types.PermissionStatus
 import com.meta.wearable.dat.core.types.RegistrationState
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -35,6 +37,15 @@ import kotlinx.coroutines.withTimeoutOrNull
  * since it registers an ActivityResultLauncher.
  */
 class GlassesManager(private val activity: ComponentActivity) {
+
+    companion object {
+        // DAT SDK 0.8.0 can leave a stuck link lease after a BT severance (e.g. folding the
+        // glasses), causing createSession() to fail with NO_ELIGIBLE_DEVICE even once the
+        // glasses are reconnected. A short delay + retry recovers it without an app restart.
+        // See https://github.com/facebook/meta-wearables-dat-android/issues/128.
+        private const val STUCK_SESSION_MAX_ATTEMPTS = 3
+        private const val STUCK_SESSION_RETRY_DELAY_MS = 500L
+    }
 
     private val deviceSelector: DeviceSelector by lazy { AutoDeviceSelector() }
 
@@ -128,12 +139,15 @@ class GlassesManager(private val activity: ComponentActivity) {
     }
 
     private suspend fun ensureStream(): Stream? {
-        stream?.let { return it }
+        if (stream != null && session?.state?.value == DeviceSessionState.STARTED) {
+            return stream
+        }
+        if (stream != null || session != null) {
+            // Stale from a previous run (e.g. BT severed while the glasses were folded).
+            stopSession()
+        }
 
-        val activeSession = session ?: Wearables.createSession(deviceSelector).getOrNull()?.also {
-            session = it
-            it.start()
-        } ?: return null
+        val activeSession = createSessionWithRetry() ?: return null
 
         activeSession.state.first { it == DeviceSessionState.STARTED }
 
@@ -146,6 +160,27 @@ class GlassesManager(private val activity: ComponentActivity) {
 
         stream = newStream
         return newStream
+    }
+
+    /**
+     * Creates a session, retrying if the SDK reports [DeviceSessionError.NO_ELIGIBLE_DEVICE] —
+     * the signature of a stuck link lease after a BT severance. Any other error fails fast.
+     */
+    private suspend fun createSessionWithRetry(): DeviceSession? {
+        repeat(STUCK_SESSION_MAX_ATTEMPTS) { attempt ->
+            val result = Wearables.createSession(deviceSelector)
+            result.getOrNull()?.let { created ->
+                session = created
+                created.start()
+                return created
+            }
+
+            if (result.errorOrNull() != DeviceSessionError.NO_ELIGIBLE_DEVICE) return null
+            if (attempt < STUCK_SESSION_MAX_ATTEMPTS - 1) {
+                delay(STUCK_SESSION_RETRY_DELAY_MS)
+            }
+        }
+        return null
     }
 
     private fun PhotoData.toBitmap(): Bitmap =
